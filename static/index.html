@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GregMatOR</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: white;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        @keyframes bounce-slow {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(50vh);
+            }
+        }
+
+        .container {
+            padding: 0 16px;
+            padding-bottom: 40px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+            margin-top: 40px;
+            margin-bottom: 24px;
+        }
+
+        .input-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 24px;
+            gap: 0;
+        }
+
+        .prompt-input {
+            padding: 8px 12px;
+            border: 2px solid #ccc;
+            border-radius: 8px 0 0 8px;
+            width: 50%;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .generate-btn {
+            background-color: black;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        .generate-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .loading-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 256px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid black;
+            border-radius: 50%;
+            width: 64px;
+            height: 64px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .question-card {
+            border: 2px solid #9ca3af;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px auto;
+            max-width: 768px;
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.5s ease-in-out;
+        }
+
+        .question-type {
+            display: inline-block;
+            font-size: 0.875rem;
+            background-color: #dbeafe;
+            color: #1d4ed8;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .question-text {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .option-btn {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .option-btn:hover {
+            background-color: #f3f4f6;
+        }
+
+        .option-selected {
+            background-color: #dbeafe !important;
+            border-color: #3b82f6 !important;
+        }
+
+        .option-correct {
+            background-color: #dcfce7 !important;
+            border-color: #15803d !important;
+        }
+
+        .option-incorrect {
+            background-color: #fecaca !important;
+            border-color: #dc2626 !important;
+        }
+
+        .explanation-box {
+            margin-top: 16px;
+            padding: 12px;
+            background-color: #fef3c7;
+            border-left: 4px solid #d97706;
+        }
+
+        .explanation-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .result-text {
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .correct {
+            color: #059669;
+        }
+
+        .incorrect {
+            color: #dc2626;
+        }
+
+        .submit-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        .submit-btn {
+            background-color: #15803d;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .submit-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-ball"></div>
+    
+    <div class="container">
+        <h1>GregMatOR</h1>
+        
+        <div class="input-container">
+            <input 
+                type="text" 
+                id="promptInput"
+                class="prompt-input"
+                placeholder="e.g., Generate 2 SE and 1 RC"
+            />
+            <button class="generate-btn" onclick="handleGenerate()">Generate</button>
+        </div>
+
+        <div id="loadingContainer" class="loading-container hidden">
+            <div class="spinner"></div>
+        </div>
+
+        <div id="questionsContainer"></div>
+
+        <div id="submitContainer" class="submit-container hidden">
+            <button class="submit-btn" onclick="handleSubmit()">Submit Answers</button>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let showAnswers = false;
+        let loading = false;
+
+        async function handleGenerate() {
+            const prompt = document.getElementById('promptInput').value;
+            if (!prompt.trim()) return;
+
+            setLoading(true);
+            showAnswers = false;
+            questions = [];
+            updateUI();
+
+            try {
+                const response = await fetch('/generate-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ input: prompt })
+                });
+
+                const result = await response.json();
+
+                if (result.Error) {
+                    alert('Error: ' + result.Error);
+                    setLoading(false);
+                    return;
+                }
+
+                const formatted = result.map(q => ({
+                    ...q,
+                    selected: []
+                }));
+
+                setTimeout(() => {
+                    questions = formatted;
+                    setLoading(false);
+                    updateUI();
+                }, 1500);
+            } catch (error) {
+                alert('Error: ' + error.message);
+                setLoading(false);
+                updateUI();
+            }
+        }
+
+        function setLoading(isLoading) {
+            loading = isLoading;
+            document.getElementById('loadingContainer').classList.toggle('hidden', !loading);
+            document.getElementById('questionsContainer').innerHTML = '';
+            document.getElementById('submitContainer').classList.add('hidden');
+        }
+
+        function handleOptionToggle(qIndex, option) {
+            const question = questions[qIndex];
+            let updated;
+            
+            if (question.selected.includes(option)) {
+                updated = question.selected.filter(o => o !== option);
+            } else {
+                if (question['Question-Type'] === 'SE') {
+                    updated = question.selected.length < 2 ? [...question.selected, option] : question.selected;
+                } else {
+                    updated = [option];
+                }
+            }
+            
+            questions[qIndex].selected = updated;
+            updateUI();
+        }
+
+        function handleSubmit() {
+            showAnswers = true;
+            updateUI();
+        }
+
+        function isCorrect(question, selected) {
+            if (!showAnswers) return null;
+            
+            const correct = Array.isArray(question['Correct Answer'])
+                ? question['Correct Answer'].sort()
+                : typeof question['Correct Answer'] === 'string'
+                ? [question['Correct Answer']]
+                : [];
+            
+            return (
+                selected.length === correct.length &&
+                selected.sort().every((val, i) => val === correct[i])
+            );
+        }
+
+        function getOptionClass(question, option) {
+            if (!showAnswers) {
+                return question.selected.includes(option) ? 'option-btn option-selected' : 'option-btn';
+            }
+            
+            const correctAnswers = Array.isArray(question['Correct Answer']) 
+                ? question['Correct Answer'] 
+                : [question['Correct Answer']];
+            
+            const isSelected = question.selected.includes(option);
+            const isCorrectOption = correctAnswers.includes(option);
+            
+            if (isSelected && isCorrectOption) {
+                return 'option-btn option-correct';
+            } else if (isSelected && !isCorrectOption) {
+                return 'option-btn option-incorrect';
+            } else if (isCorrectOption) {
+                return 'option-btn option-correct';
+            } else {
+                return 'option-btn';
+            }
+        }
+
+        function updateUI() {
+            const questionsContainer = document.getElementById('questionsContainer');
+            const submitContainer = document.getElementById('submitContainer');
+            
+            questionsContainer.innerHTML = '';
+            
+            questions.forEach((question, qIndex) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question-card';
+                
+                const optionsHTML = question.Options.map((option, i) => 
+                    `<button 
+                        class="${getOptionClass(question, option)}"
+                        onclick="handleOptionToggle(${qIndex}, '${option.replace(/'/g, "\\'")}')"
+                    >
+                        ${option}
+                    </button>`
+                ).join('');
+                
+                const explanationHTML = showAnswers ? 
+                    `<div class="explanation-box">
+                        <div class="explanation-title">Explanation:</div>
+                        <div>${question.Explanation}</div>
+                    </div>` : '';
+                
+                const resultHTML = showAnswers ? 
+                    (isCorrect(question, question.selected) ? 
+                        '<div class="result-text correct">✅ Correct</div>' : 
+                        `<div class="result-text incorrect">❌ Incorrect ${question.selected.length === 0 ? '(Unanswered)' : ''}</div>`
+                    ) : '';
+                
+                questionDiv.innerHTML = `
+                    <div class="question-type">${question['Question-Type']}</div>
+                    <div class="question-text">${question.Question}</div>
+                    <div class="options-grid">
+                        ${optionsHTML}
+                    </div>
+                    ${explanationHTML}
+                    ${resultHTML}
+                `;
+                
+                questionsContainer.appendChild(questionDiv);
+            });
+            
+            // Show submit button if we have questions and haven't shown answers yet
+            if (questions.length > 0 && !showAnswers && !loading) {
+                submitContainer.classList.remove('hidden');
+            } else {
+                submitContainer.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
